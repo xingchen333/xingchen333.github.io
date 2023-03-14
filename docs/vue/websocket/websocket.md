@@ -18,8 +18,8 @@ create_socket.js
 ``` js
 "use strict"
 let getToken = function() {
-    // 加密方法请自行完成
-	return XXX
+	// 加密方法自行实现
+	return xxx
 }
 
 class websocketTask {
@@ -37,7 +37,7 @@ class websocketTask {
 		this._message = []
 		this._closeSocketByUser = false
 		this._reConnectInterval = null
-		this._heartbeatCheck = false
+		this._heartbeatCheck = true
 	}
 	/**
 	 * 创建新websocket连接
@@ -59,12 +59,17 @@ class websocketTask {
 	 * 关闭websocket连接
 	 */
 	closeSocket() {
-		clearInterval(this._setIntervalWesocketPush)
-		clearInterval(this._reConnectInterval)
+		if (this._setIntervalWesocketPush) {
+			clearInterval(this._setIntervalWesocketPush)
+			this._setIntervalWesocketPush = null
+		}
+
+		if (this._reConnectInterval) {
+			clearInterval(this._reConnectInterval)
+			this._reConnectInterval = null
+		}
 
 		this._closeSocketByUser = true
-		this._setIntervalWesocketPush = null
-		this._reConnectInterval = null
 
 		if (this._Socket) {
 			this._Socket.close()
@@ -75,12 +80,15 @@ class websocketTask {
 	}
 	/**打开WS之后发送心跳 */
 	onopenWS() {
-		console.log(`${this.symbol}已连接`)
-		if (this._reConnectInterval) {
-			clearInterval(this._reConnectInterval)
+		console.log(`${this.symbol}已连接，当前ws状态为：${this._Socket.readyState}`)
+
+		if (this._Socket && this._Socket.readyState === 1) {
+			this._reConnectInterval && clearInterval(this._reConnectInterval)
 			this._reConnectInterval = null
 			this._reConnectCount = 0
 		}
+
+		this._heartbeatCheck = true
 		this._sendPing()
 		if (this._message.length) {
 			this._message.forEach((value, index, arr) => {
@@ -122,17 +130,20 @@ class websocketTask {
 	}
 	/** 断开后 */
 	_oncloseWS(err) {
+		console.log(err, this._closeSocketByUser)
 		if (!this._closeSocketByUser) {
+			if (this._reConnectInterval) {
+				return
+			}
+			console.log(this._reConnectInterval)
 			console.log(err)
 			console.log(`${this.symbol}已断开连接,正在重连`)
 			console.log(`目前的链接状态：${this._Socket.readyState}`)
 			this._reConnectWs()
 		} else {
-			if (this._setIntervalWesocketPush) {
-				clearInterval(this._setIntervalWesocketPush)
-				this._setIntervalWesocketPush = null
-			}
-			console.log(`${this.symbol}已断开连接`)
+			this._reConnectInterval && clearInterval(this._reConnectInterval)
+			this._reConnectInterval = null
+			console.log(`${this.symbol}已关闭连接`)
 		}
 	}
 	/**发送心跳
@@ -143,46 +154,39 @@ class websocketTask {
 		if (this._setIntervalWesocketPush) {
 			return
 		}
-		console.log(`正在发送心跳${ping}`)
-		this._heartbeatCheck = false
-		this._Socket.send(ping)
 		this._setIntervalWesocketPush = setInterval(() => {
 			if (this._heartbeatCheck === false) {
 				// 距离上次请求心跳依旧没有返回，可能已经失联，清除心跳计时器，走重启流程
 				console.log('距离上次请求心跳依旧没有返回，可能已经失联，清除心跳计时器，走重启流程')
-				clearInterval(this._setIntervalWesocketPush)
-				this._setIntervalWesocketPush = null
-				this.createSocket()
+				this._reConnectWs()
 			} else {
+				console.log(`正在发送心跳${ping}`)
 				this._heartbeatCheck = false
 				this._Socket.send(ping)
 			}
 		}, time)
 	}
 	_reConnectWs() {
-		if (this._reConnectInterval || !this.reConnectNumber) {
+		console.log(this._reConnectInterval, '重连定时器')
+		if (this._reConnectInterval || this.reConnectNumber === 0) {
 			return
 		}
 		if (this._setIntervalWesocketPush) {
 			clearInterval(this._setIntervalWesocketPush)
 			this._setIntervalWesocketPush = null
 		}
-		if (this.reConnectNumber === '-' || this._reConnectCount < this.reConnectNumber) {
-			this._reConnectCount++
-			console.log(`${this.symbol}连接失败重连中...计数器：${this._reConnectCount}/${this.reConnectNumber}`)
-			this.createSocket()
-		}
-		// 30秒重连一次，如果reConnectNumber == '-' 表示无穷大，会一直重连
-		this._reConnectInterval = setInterval(() => {
+		// 30秒重连一次，立即执行一次，如果reConnectNumber == '-' 表示无穷大，会一直重连
+		this._reConnectInterval = setInterval((() => {
 			if (this.reConnectNumber === '-' || this._reConnectCount < this.reConnectNumber) {
 				this._reConnectCount++
-				console.log(`${this.symbol}连接失败重连中...计数器：${this._reConnectCount}/${this.reConnectNumber}`)
+				console.log(
+					`${this.symbol}连接失败重连中...计数器：${this._reConnectCount}/${this.reConnectNumber}`)
 				this.createSocket()
 			} else {
 				clearInterval(this._reConnectInterval)
 				this._reConnectInterval = null
 			}
-		}, 30 * 1000)
+		})(), 30 * 1000)
 	}
 }
 
