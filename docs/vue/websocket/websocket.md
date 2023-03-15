@@ -22,7 +22,7 @@ let getToken = function() {
 	return xxx
 }
 
-class websocketTask {
+class socketTask {
 	/**
 	 * @param {string} options 配置项{url: 连接地址，symbol:事件识别符，number: 重连次数：-表示无穷大，不设置默认5次}
 	 */
@@ -43,17 +43,21 @@ class websocketTask {
 	 * 创建新websocket连接
 	 */
 	createSocket() {
-		if (this._Socket) {
-			this._Socket.close()
-			this._Socket = null
+		if ('WebSocket' in window) {
+			if (this._Socket) {
+				this._Socket.close()
+				this._Socket = null
+			}
+			this._closeSocketByUser = false
+			console.log('正在连接' + this.symbol)
+			this._Socket = new WebSocket(this.url + '?token=' + getToken())
+			this._Socket.onopen = this.onopenWS.bind(this)
+			this._Socket.onmessage = this.onmessageWS.bind(this)
+			this._Socket.onclose = this._oncloseWS.bind(this)
+			this._Socket.onerror = this._onerrorWS.bind(this)
+		} else {
+			console.log('Not support websocket')
 		}
-		this._closeSocketByUser = false
-		console.log('正在连接' + this.symbol)
-		this._Socket = new WebSocket(this.url + '?token=' + getToken())
-		this._Socket.onopen = this.onopenWS.bind(this)
-		this._Socket.onmessage = this.onmessageWS.bind(this)
-		this._Socket.onclose = this._oncloseWS.bind(this)
-		this._Socket.onerror = this._onerrorWS.bind(this)
 	}
 	/**
 	 * 关闭websocket连接
@@ -101,6 +105,15 @@ class websocketTask {
 	_onerrorWS(err) {
 		console.log('发生了意外错误' + err)
 		this._Socket && this._Socket.close()
+		if (this._reConnectInterval) {
+			return
+		}
+		console.log(this._reConnectInterval)
+		console.log(err)
+		console.log(`${this.symbol}已断开连接,立即开始重连`)
+		console.log(`目前的链接状态：${this._Socket.readyState}`)
+		// 由于已知错误发生的断开，则立即启动重连
+		this._reConnectWs()
 	}
 	/**WS数据接收统一处理 */
 	onmessageWS(e) {
@@ -130,21 +143,10 @@ class websocketTask {
 	}
 	/** 断开后 */
 	_oncloseWS(err) {
+		// 由于未知错误发生的断开，则由下次心跳计时器判断是否需要重连（为了避免err.code===1006时发生的无限重连BUG）
 		console.log(err, this._closeSocketByUser)
-		if (!this._closeSocketByUser) {
-			if (this._reConnectInterval) {
-				return
-			}
-			console.log(this._reConnectInterval)
-			console.log(err)
-			console.log(`${this.symbol}已断开连接,正在重连`)
-			console.log(`目前的链接状态：${this._Socket.readyState}`)
-			this._reConnectWs()
-		} else {
-			this._reConnectInterval && clearInterval(this._reConnectInterval)
-			this._reConnectInterval = null
-			console.log(`${this.symbol}已关闭连接`)
-		}
+		console.error(`${err.code}错误导致关闭，${this._Socket.readyState}`)
+		console.log(`${this.symbol}已关闭连接`)
 	}
 	/**发送心跳
 	 * @param {number} time 心跳间隔毫秒 默认35000
@@ -154,17 +156,17 @@ class websocketTask {
 		if (this._setIntervalWesocketPush) {
 			return
 		}
-		this._setIntervalWesocketPush = setInterval(() => {
-			if (this._heartbeatCheck === false) {
-				// 距离上次请求心跳依旧没有返回，可能已经失联，清除心跳计时器，走重启流程
-				console.log('距离上次请求心跳依旧没有返回，可能已经失联，清除心跳计时器，走重启流程')
-				this._reConnectWs()
-			} else {
-				console.log(`正在发送心跳${ping}`)
-				this._heartbeatCheck = false
-				this._Socket.send(ping)
-			}
-		}, time)
+		this._setIntervalWesocketPush = setInterval((() => {
+			console.log(`正在发送心跳${ping}`)
+			this._heartbeatCheck = false
+			this._Socket.send(ping)
+			setTimeout(() => {
+				if (this._heartbeatCheck === false) {
+					console.log('距离上次请求心跳依旧没有返回，可能已经失联，清除心跳计时器，走重启流程')
+					this._reConnectWs()
+				}
+			}, 5 * 1000)
+		})(), time)
 	}
 	_reConnectWs() {
 		console.log(this._reConnectInterval, '重连定时器')

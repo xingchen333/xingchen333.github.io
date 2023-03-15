@@ -1,5 +1,7 @@
 // node_modules/vitepress/dist/client/theme-default/index.js
 import "D:/个人/alex-blog/node_modules/vitepress/dist/client/theme-default/styles/fonts.css";
+
+// node_modules/vitepress/dist/client/theme-default/without-fonts.js
 import "D:/个人/alex-blog/node_modules/vitepress/dist/client/theme-default/styles/vars.css";
 import "D:/个人/alex-blog/node_modules/vitepress/dist/client/theme-default/styles/base.css";
 import "D:/个人/alex-blog/node_modules/vitepress/dist/client/theme-default/styles/utils.css";
@@ -24,7 +26,7 @@ var theme = {
     app.component("Badge", VPBadge);
   }
 };
-var theme_default_default = theme;
+var without_fonts_default = theme;
 export {
   default5 as VPDocAsideSponsors,
   default3 as VPHomeFeatures,
@@ -34,6 +36,6 @@ export {
   default6 as VPTeamPage,
   default8 as VPTeamPageSection,
   default7 as VPTeamPageTitle,
-  theme_default_default as default
+  without_fonts_default as default
 };
 //# sourceMappingURL=@theme_index.js.map
