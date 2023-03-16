@@ -105,13 +105,14 @@ class socketTask {
 	_onerrorWS(err) {
 		console.log('发生了意外错误' + err)
 		this._Socket && this._Socket.close()
-		if (this._reConnectInterval) {
-			return
-		}
 		console.log(this._reConnectInterval)
 		console.log(err)
 		console.log(`${this.symbol}已断开连接,立即开始重连`)
 		console.log(`目前的链接状态：${this._Socket.readyState}`)
+		if (this._setIntervalWesocketPush) {
+			clearInterval(this._setIntervalWesocketPush)
+			this._setIntervalWesocketPush = null
+		}
 		// 由于已知错误发生的断开，则立即启动重连
 		this._reConnectWs()
 	}
@@ -144,8 +145,7 @@ class socketTask {
 	/** 断开后 */
 	_oncloseWS(err) {
 		// 由于未知错误发生的断开，则由下次心跳计时器判断是否需要重连（为了避免err.code===1006时发生的无限重连BUG）
-		console.log(err, this._closeSocketByUser)
-		console.error(`${err.code}错误导致关闭，${this._Socket.readyState}`)
+		console.error(err, `${err.code}错误导致关闭`)
 		console.log(`${this.symbol}已关闭连接`)
 	}
 	/**发送心跳
@@ -156,29 +156,27 @@ class socketTask {
 		if (this._setIntervalWesocketPush) {
 			return
 		}
-		this._setIntervalWesocketPush = setInterval((() => {
+		this._setIntervalWesocketPush = setInterval(() => {
 			console.log(`正在发送心跳${ping}`)
 			this._heartbeatCheck = false
 			this._Socket.send(ping)
 			setTimeout(() => {
 				if (this._heartbeatCheck === false) {
 					console.log('距离上次请求心跳依旧没有返回，可能已经失联，清除心跳计时器，走重启流程')
+					if (this._setIntervalWesocketPush) {
+						clearInterval(this._setIntervalWesocketPush)
+						this._setIntervalWesocketPush = null
+					}
 					this._reConnectWs()
 				}
 			}, 5 * 1000)
-		})(), time)
+		}, time)
 	}
 	_reConnectWs() {
 		console.log(this._reConnectInterval, '重连定时器')
-		if (this._reConnectInterval || this.reConnectNumber === 0) {
-			return
-		}
-		if (this._setIntervalWesocketPush) {
-			clearInterval(this._setIntervalWesocketPush)
-			this._setIntervalWesocketPush = null
-		}
-		// 30秒重连一次，立即执行一次，如果reConnectNumber == '-' 表示无穷大，会一直重连
-		this._reConnectInterval = setInterval((() => {
+		if (this._reConnectInterval || this.reConnectNumber === 0) return
+
+		function reconnect() {
 			if (this.reConnectNumber === '-' || this._reConnectCount < this.reConnectNumber) {
 				this._reConnectCount++
 				console.log(
@@ -188,7 +186,12 @@ class socketTask {
 				clearInterval(this._reConnectInterval)
 				this._reConnectInterval = null
 			}
-		})(), 30 * 1000)
+		}
+
+		reconnect()
+
+		// 30秒重连一次，立即执行一次，如果reConnectNumber == '-' 表示无穷大，会一直重连
+		this._reConnectInterval = setInterval(reconnect(), 30 * 1000)
 	}
 }
 
