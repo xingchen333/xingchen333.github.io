@@ -176,7 +176,7 @@ class socketTask {
 		console.log(this._reConnectInterval, '重连定时器')
 		if (this._reConnectInterval || this.reConnectNumber === 0) return
 
-		function reconnect() {
+		const reconnect = () => {
 			if (this.reConnectNumber === '-' || this._reConnectCount < this.reConnectNumber) {
 				this._reConnectCount++
 				console.log(
