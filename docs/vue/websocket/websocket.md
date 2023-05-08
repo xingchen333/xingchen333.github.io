@@ -85,16 +85,9 @@ class socketTask {
 	/**打开WS之后发送心跳 */
 	onopenWS() {
 		console.log(`${this.symbol}已连接，当前ws状态为：${this._Socket.readyState}`)
-
-		if (this._Socket && this._Socket.readyState === 1) {
-			this._reConnectInterval && clearInterval(this._reConnectInterval)
-			this._reConnectInterval = null
-			this._reConnectCount = 0
-		}
-
 		this._heartbeatCheck = true
 		this._sendPing()
-		if (this._message.length) {
+		if (this._message.length && this._Socket.readyState === 1) {
 			this._message.forEach((value, index, arr) => {
 				this.sendWSPush(value)
 			})
@@ -122,6 +115,11 @@ class socketTask {
 		if (e.data === 'heartbeat') {
 			// 收到心跳信息后更改heartbeat状态
 			console.log('收到心跳信息，重置_heartbeatCheck状态为true')
+			if (this._reConnectInterval) {
+				clearInterval(this._reConnectInterval)
+				this._reConnectInterval = null
+				this._reConnectCount = 0
+			}
 			this._heartbeatCheck = true
 			return
 		}
@@ -145,7 +143,7 @@ class socketTask {
 	/** 断开后 */
 	_oncloseWS(err) {
 		// 由于未知错误发生的断开，则由下次心跳计时器判断是否需要重连（为了避免err.code===1006时发生的无限重连BUG）
-		console.error(err, `${err.code}错误导致关闭`)
+		console.log(err, `${err.code}错误导致关闭`)
 		console.log(`${this.symbol}已关闭连接`)
 	}
 	/**发送心跳
@@ -156,7 +154,7 @@ class socketTask {
 		if (this._setIntervalWesocketPush) {
 			return
 		}
-		this._setIntervalWesocketPush = setInterval(() => {
+		const pingFun = () => {
 			console.log(`正在发送心跳${ping}`)
 			this._heartbeatCheck = false
 			this._Socket.send(ping)
@@ -170,7 +168,9 @@ class socketTask {
 					this._reConnectWs()
 				}
 			}, 5 * 1000)
-		}, time)
+		}
+		pingFun()
+		this._setIntervalWesocketPush = setInterval(pingFun, time)
 	}
 	_reConnectWs() {
 		console.log(this._reConnectInterval, '重连定时器')
@@ -187,11 +187,9 @@ class socketTask {
 				this._reConnectInterval = null
 			}
 		}
-
 		reconnect()
-
 		// 30秒重连一次，立即执行一次，如果reConnectNumber == '-' 表示无穷大，会一直重连
-		this._reConnectInterval = setInterval(reconnect(), 30 * 1000)
+		this._reConnectInterval = setInterval(reconnect, 30 * 1000)
 	}
 }
 
