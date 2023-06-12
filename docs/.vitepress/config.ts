@@ -79,6 +79,12 @@ const sidebar: DefaultTheme.Sidebar = {
             items: [
                 { text: '消息无缝滚动', link: '/vue/components/message-scroll' },
             ]
+        },
+        {
+            text: 'webpack',
+            items: [
+                { text: 'plugins配置', link: '/vue/webpack/plugins' },
+            ]
         }
     ],
     '/uniapp': [
